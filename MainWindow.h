@@ -21,14 +21,10 @@ public:
     MainWindow(QWidget* parent = nullptr);
     ~MainWindow();
 protected:
-    bool eventFilter(QObject* obj, QEvent* event) override;
-    void paintEvent(QPaintEvent*) override;
+
 private slots:
 
 private:
-    void mouseMove(QMouseEvent* mouseEvent);
-    void mousePress(QMouseEvent* mouseEvent);
-    void mouseRelease(QMouseEvent* mouseEvent);
     void btnMainToolSelected();
     void initMask();
     void initToolMain();

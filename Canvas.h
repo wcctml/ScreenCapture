@@ -2,20 +2,16 @@
 #ifndef CANVAS_H
 #define CANVAS_H
 
-
+#include <QGraphicsScene>
+#include <QGraphicsSceneMouseEvent>
+#include <QGraphicsPathItem>
 #include <QObject>
-#include <QWidget>
-#include <QPainter>
-#include <QPainterPath>
 
 
-
-class Canvas : public QWidget
+class Canvas : public QGraphicsScene
 {
     Q_OBJECT
 public:
-    explicit Canvas(QWidget* parent = nullptr);
-    ~Canvas();
     enum class State
     {
         start,
@@ -24,24 +20,24 @@ public:
         ellipse,
         ellipseFill
     };
-    void paintEvent(QPaintEvent*) override;
+    explicit Canvas(QObject* parent = nullptr);
+    ~Canvas();
 public:
     State state = State::start;
 protected:
-    void mouseMoveEvent(QMouseEvent* mouseEvent) override;
-    void mousePressEvent(QMouseEvent* mouseEvent) override;
-    void mouseReleaseEvent(QMouseEvent* mouseEvent) override;
-signals:
+    void mouseMoveEvent(QGraphicsSceneMouseEvent* mouseEvent) override;
+    void mousePressEvent(QGraphicsSceneMouseEvent* mouseEvent) override;
+    void mouseReleaseEvent(QGraphicsSceneMouseEvent* mouseEvent) override;
 private:
     void initMask();
+    void initPath();
 private:
-    QVector<QPainterPath> paths;
     QPointF mousePressPoint;
     bool isMouseDown = false;
-    QPainterPath maskPath;
+    QGraphicsPathItem* maskPathItem;
+    QGraphicsPathItem* rectPathItem;
     qreal maskBorderWidth = 2.0;
-    QPainter* painter;
-    QImage* canvasImg;
+    bool test = true;
 };
 
 #endif // CANVAS_H

@@ -10,7 +10,6 @@ CONFIG += c++17
 
 SOURCES += \
     Canvas.cpp \
-    CanvasBak.cpp \
     Icon.cpp \
     PathItem.cpp \
     ScreenShoter.cpp \
@@ -19,7 +18,6 @@ SOURCES += \
 
 HEADERS += \
     Canvas.h \
-    CanvasBak.h \
     Icon.h \
     MainWindow.h \
     PathItem.h \
