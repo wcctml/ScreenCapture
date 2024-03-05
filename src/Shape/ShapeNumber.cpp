@@ -1,9 +1,9 @@
 ﻿#include "ShapeNumber.h"
+#include <numbers>
 #include "../App.h"
 #include "../WindowBase.h"
 #include "../ToolSub.h"
 #include "../Cursor.h"
-#include "numbers"
 static int num = 1;
 
 ShapeNumber::ShapeNumber(const int &x, const int &y) : ShapeBase(x, y)
@@ -87,6 +87,32 @@ bool ShapeNumber::OnMoseDrag(const int &x, const int &y)
     auto canvas = win->surfaceFront->getCanvas();
     canvas->clear(SK_ColorTRANSPARENT);
     Paint(canvas);
+    App::GetWin()->Refresh();
+    return false;
+}
+
+bool ShapeNumber::OnMouseWheel(const int& delta)
+{
+    auto span = 8.f;
+    auto x = endX - startX;
+    auto y = endY - startY;
+    auto l = std::sqrt(x * x + y * y);//圆心到箭头顶点的长度    
+    if (delta > 0) {
+        endX += span * x / l;
+        endY += span * y / l;
+    }
+    else {
+        endX -= span * x / l;
+        endY -= span * y / l;
+    }
+    makePath(startX, startY, endX, endY);
+    auto win = App::GetWin();
+    win->surfaceFront->getCanvas()->clear(SK_ColorTRANSPARENT);
+    auto canvas = win->surfaceBack->getCanvas();
+    canvas->clear(SK_ColorTRANSPARENT);
+    Paint(canvas);
+    unsigned half = draggerSize / 2;
+    Draggers[0].setXYWH(endX - half, endY - half, draggerSize, draggerSize);
     App::GetWin()->Refresh();
     return false;
 }

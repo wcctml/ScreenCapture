@@ -1,11 +1,8 @@
 #pragma once
-#include "include/core/SkSurface.h"
 #include "include/core/SkCanvas.h"
-#include "include/core/SkRect.h"
 #include "include/core/SkPoint.h"
 #include "include/core/SkPath.h"
 #include "ShapeBase.h"
-#include <map>
 
 class ShapeMosaic : public ShapeBase
 {
@@ -21,12 +18,9 @@ protected:
 
 private:
     void initParams();
-    void drawRectsByPoints(const SkPoint& point, SkCanvas* canvas);
+    void drawRectsByPoints(const std::vector<SkPoint>& points, SkCanvas *canvas);
     SkPath path;
     bool stroke{true};
     int strokeWidth{26};
-    float size{ 20 };
-    SkColor color{SkColorSetARGB(255, 207, 19, 34)};
-    std::map<int, SkColor> colorCache;
-    SkPixmap* pixmap;
+    float size{20};
 };

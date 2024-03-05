@@ -1,13 +1,10 @@
-﻿#include <Windows.h>
-#include <shobjidl.h>
+﻿#include "ToolMain.h"
 #include <format>
-#include <sstream>
 #include <string>
-#include "ToolMain.h"
+#include "include/core/SkTextBlob.h"
 #include "State.h"
 #include "CutMask.h"
 #include "App.h"
-#include "include/core/SkTextBlob.h"
 #include "Icon.h"
 #include "ToolSub.h"
 #include "Recorder.h"
@@ -23,64 +20,12 @@ ToolMain::~ToolMain()
 
 ToolMain::ToolMain()
 {
-
-}
-void ToolMain::saveFile()
-{
-    IFileOpenDialog* dialog;
-    CLSID param1 = CLSID_FileSaveDialog, param2 = IID_IFileSaveDialog;
-    auto hr = CoCreateInstance(param1, NULL, CLSCTX_ALL, param2, reinterpret_cast<void**>(&dialog));
-    if (FAILED(hr))
-    {
-        MessageBox(NULL, L"Failed to create COM FileSaveDialog object.", L"Error", MB_OK | MB_ICONERROR);
-        return;
-    }
-    COMDLG_FILTERSPEC FileTypes[] = {{ L"All Pictures", L"*.png;" },{ L"All files", L"*.*" }};
-    SYSTEMTIME localTime;
-    GetLocalTime(&localTime);
-    std::wstring name = std::format(L"{}{}{}{}{}{}{}", localTime.wYear, localTime.wMonth, localTime.wDay,
-        localTime.wHour, localTime.wMinute, localTime.wSecond, localTime.wMilliseconds);
-    dialog->SetFileName(name.c_str());
-    dialog->SetFileTypes(2, FileTypes);
-    dialog->SetTitle(L"Save File");
-    dialog->SetDefaultExtension(L"png");
-    dialog->SetOptions(FOS_FORCEFILESYSTEM | FOS_PATHMUSTEXIST | FOS_OVERWRITEPROMPT);
-    hr = dialog->Show(App::GetWin()->hwnd);
-    if (hr == HRESULT_FROM_WIN32(ERROR_CANCELLED)) { //用户取消
-        dialog->Release();
-        return;
-    }
-    IShellItem* pItem;
-    hr = dialog->GetResult(&pItem);
-    if (FAILED(hr))
-    {
-        dialog->Release();
-        MessageBox(NULL, L"Failed to get file path from save dialog.", L"Error", MB_OK | MB_ICONERROR);
-        return;
-    }
-    PWSTR filePath;
-    hr = pItem->GetDisplayName(SIGDN_FILESYSPATH, &filePath);
-    if (FAILED(hr))
-    {
-        CoTaskMemFree(filePath);
-        dialog->Release();
-        MessageBox(NULL, L"Failed to get file name from save dialog.", L"Error", MB_OK | MB_ICONERROR);
-        return;
-    }
-    std::wstringstream ss;
-    ss << filePath;
-    CoTaskMemFree(filePath);
-    dialog->Release();
-    std::wstring wstr = ss.str();
-    int count = WideCharToMultiByte(CP_UTF8, 0, wstr.c_str(), wstr.length(), NULL, 0, NULL, NULL);
-    std::string str(count, 0);
-    WideCharToMultiByte(CP_UTF8, 0, wstr.c_str(), -1, &str[0], count, NULL, NULL);
-    App::GetWin()->Save(str);
+    InitBtns();
 }
 void ToolMain::SetPositionByCutMask()
 {
     auto mask = CutMask::Get();
-    float left{ mask->CutRect.fRight - btns.size() * ToolBtn::Width };
+    float left{ mask->CutRect.fRight - Btns.size() * ToolBtn::Width };
     float top{ mask->CutRect.fBottom + MarginTop };
     //三个缝隙高度和两个工具条高度
     auto heightSpan = MarginTop * 3 + ToolBtn::Height * 2;    
@@ -118,11 +63,11 @@ void ToolMain::SetPositionByCutMask()
             }
         }
     }
-    ToolRect.setXYWH(left,top, btns.size() * ToolBtn::Width, ToolBtn::Height);
+    ToolRect.setXYWH(left,top, Btns.size() * ToolBtn::Width, ToolBtn::Height);
 }
 void ToolMain::SetPosition(const float& x, const float& y)
 {
-    ToolRect.setXYWH(x, y, btns.size() * ToolBtn::Width, ToolBtn::Height);
+    ToolRect.setXYWH(x, y, Btns.size() * ToolBtn::Width, ToolBtn::Height);
 }
 void ToolMain::Init()
 {
@@ -145,10 +90,11 @@ bool ToolMain::OnMouseDown(const int& x, const int& y)
     {
         return false;
     }
+    Recorder::Get()->ProcessText();
     win->IsMouseDown = false; //不然在主工具栏上拖拽的时候，会改变CutBox，而且改变完CutBox后不会在显示工具栏
     if (IndexHovered == IndexSelected)
     {
-        btns[IndexHovered]->IsSelected = false;
+        Btns[IndexHovered]->IsSelected = false;
         IndexSelected = -1;
         win->state = State::tool;
         if (topFlag) {
@@ -158,10 +104,10 @@ bool ToolMain::OnMouseDown(const int& x, const int& y)
     }
     else
     {
-        if (btns[IndexHovered]->Selectable) {
-            btns[IndexHovered]->IsSelected = true;
+        if (Btns[IndexHovered]->Selectable) {
+            Btns[IndexHovered]->IsSelected = true;
             if (IndexSelected >= 0) {
-                btns[IndexSelected]->IsSelected = false;
+                Btns[IndexSelected]->IsSelected = false;
             }
             else {
                 if (topFlag) {
@@ -174,7 +120,7 @@ bool ToolMain::OnMouseDown(const int& x, const int& y)
             win->Refresh();
         }
         else {
-            if (btns[IndexHovered]->IsDisable) {
+            if (Btns[IndexHovered]->IsDisable) {
                 return true;
             }
             switch (IndexHovered)
@@ -192,13 +138,13 @@ bool ToolMain::OnMouseDown(const int& x, const int& y)
                 break;
             }
             case 12: {
-                saveFile();
-                btns[12]->IsHover = false;
+                App::SaveFile();
+                Btns[12]->IsHover = false;
                 break;
             }
             case 13: {
                 App::GetWin()->SaveToClipboard();                
-                btns[13]->IsHover = false;
+                Btns[13]->IsHover = false;
                 break;
             }
             case 14: {
@@ -225,7 +171,7 @@ bool ToolMain::OnPaint(SkCanvas *canvas)
     canvas->drawRect(ToolRect,paint);
     auto x = ToolRect.left();
     auto y = ToolRect.top();
-    for (auto& btn : btns)
+    for (auto& btn : Btns)
     {
         btn->Paint(canvas, paint, x, y);
         x += ToolBtn::Width;
@@ -245,42 +191,42 @@ bool ToolMain::OnPaint(SkCanvas *canvas)
 
 void ToolMain::SetUndoDisable(bool flag)
 {
-    btns[9]->IsDisable = flag;
+    Btns[9]->IsDisable = flag;
 }
 
 void ToolMain::SetRedoDisable(bool flag)
 {
-    btns[10]->IsDisable = flag;
+    Btns[10]->IsDisable = flag;
 }
 
 void ToolMain::InitBtns()
 {
-    bool flag = btns.size() > 0; //不是第一次
-    btns.clear();
-    btns.push_back(std::make_shared<ToolBtn>(Icon::rect, L"矩形"));
-    btns.push_back(std::make_shared<ToolBtn>(Icon::ellipse, L"圆形"));
-    btns.push_back(std::make_shared<ToolBtn>(Icon::arrow, L"箭头"));
-    btns.push_back(std::make_shared<ToolBtn>(Icon::number, L"标号"));
-    btns.push_back(std::make_shared<ToolBtn>(Icon::pen, L"画笔"));
-    btns.push_back(std::make_shared<ToolBtn>(Icon::line, L"直线"));
-    btns.push_back(std::make_shared<ToolBtn>(Icon::text, L"文本"));
-    //btns.push_back(std::make_shared<ToolBtn>(Icon::image, L"图片"));
-    btns.push_back(std::make_shared<ToolBtn>(Icon::mosaic, L"马赛克"));
-    btns.push_back(std::make_shared<ToolBtn>(Icon::eraser, L"橡皮擦"));
-    btns.push_back(std::make_shared<ToolBtn>(Icon::undo, L"上一步", true, false)); //9
-    btns.push_back(std::make_shared<ToolBtn>(Icon::redo, L"下一步", true, false)); //10
-    btns.push_back(std::make_shared<ToolBtn>(Icon::pin, L"钉住截图区", flag, false));//11
-    btns.push_back(std::make_shared<ToolBtn>(Icon::save, L"保存为文件", false, false));//12
-    btns.push_back(std::make_shared<ToolBtn>(Icon::copy, L"保存到剪切板", false, false));//13
-    btns.push_back(std::make_shared<ToolBtn>(Icon::close, L"退出", false, false));//14
+    Btns.push_back(std::make_shared<ToolBtn>(Icon::rect, L"矩形"));
+    Btns.push_back(std::make_shared<ToolBtn>(Icon::ellipse, L"圆形"));
+    Btns.push_back(std::make_shared<ToolBtn>(Icon::arrow, L"箭头"));
+    Btns.push_back(std::make_shared<ToolBtn>(Icon::number, L"标号"));
+    Btns.push_back(std::make_shared<ToolBtn>(Icon::pen, L"画笔"));
+    Btns.push_back(std::make_shared<ToolBtn>(Icon::line, L"直线"));
+    Btns.push_back(std::make_shared<ToolBtn>(Icon::text, L"文本"));
+    //Btns.push_back(std::make_shared<ToolBtn>(Icon::image, L"图片"));
+    Btns.push_back(std::make_shared<ToolBtn>(Icon::mosaic, L"马赛克"));
+    Btns.push_back(std::make_shared<ToolBtn>(Icon::eraser, L"橡皮擦"));
+    Btns.push_back(std::make_shared<ToolBtn>(Icon::undo, L"上一步(Ctrl+Z)", true, false)); //9
+    Btns.push_back(std::make_shared<ToolBtn>(Icon::redo, L"下一步(Ctrl+Y)", true, false)); //10
+    Btns.push_back(std::make_shared<ToolBtn>(Icon::pin, L"钉住截图区(Ctrl+P)", false, false));//11
+    Btns.push_back(std::make_shared<ToolBtn>(Icon::save, L"保存为文件(Ctrl+S)", false, false));//12
+    Btns.push_back(std::make_shared<ToolBtn>(Icon::copy, L"保存到剪切板(Ctrl+C)", false, false));//13
+    Btns.push_back(std::make_shared<ToolBtn>(Icon::close, L"退出(Esc)", false, false));//14
 }
 
-void ToolMain::Reset()
+void ToolMain::UnSelectAndHoverAll()
 {
     IndexSelected = -1;
     IndexHovered = -1;
-    InitBtns();
-    SetPositionByCutMask();
+    for (auto& btn : Btns) {
+        btn->IsHover = false;
+        btn->IsSelected = false;
+    }
 }
 
 

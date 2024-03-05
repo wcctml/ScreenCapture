@@ -44,8 +44,11 @@ bool CutMask::OnMouseDown(const int& x, const int& y)
 {    
     auto win = App::GetWin();
     if (win->state == State::start) {
+        CutRect.setLTRB(x, y, x, y);
         hoverIndex = 4;
-        CutRect.setXYWH(x, y, 0, 0);
+        win->state = State::mask;
+        win->surfaceFront->getCanvas()->clear(SK_ColorTRANSPARENT);
+        return true;
     }
     if (hoverIndex == 0) {
         CutRect.setLTRB(x, y, CutRect.fRight, CutRect.fBottom);
@@ -196,6 +199,10 @@ bool CutMask::OnMouseDrag(const int& x, const int& y)
     if (hoverIndex < 0) {
         return false;
     }
+    if (start.fX == -10 && start.fY == -10) {
+        start.fX = CutRect.fLeft;
+        start.fY = CutRect.fTop;
+    }
     auto win = App::GetWin();
     win->state = State::mask;
     if (hoverIndex == 0) {
@@ -243,25 +250,21 @@ bool CutMask::OnMouseDrag(const int& x, const int& y)
         return true;
     }
     CutRect.sort();
-    win->Refresh();
+    if (!(CutRect.width() <= 1 && CutRect.height() <= 1)) {
+        win->Refresh();
+    }    
     return true;
 }
 bool CutMask::OnPaint(SkCanvas *canvas)
 {
     auto win = App::GetWin();
-    {
-        canvas->saveLayer(nullptr,nullptr);
-        canvas->drawColor(SkColorSetARGB(160, 0, 0, 0));
-        SkPaint paint;
-        paint.setBlendMode(SkBlendMode::kClear);
-        canvas->drawRect(CutRect, paint);
-        canvas->restore();
-
-        //path.reset();
-        //path.addRect(CutRect);
-        //path.setFillType(SkPathFillType::kInverseWinding);
-    }
     SkPaint paint;
+    canvas->saveLayer(nullptr,nullptr);
+    canvas->drawColor(SkColorSetARGB(160, 0, 0, 0));        
+    paint.setBlendMode(SkBlendMode::kClear);
+    canvas->drawRect(CutRect, paint);
+    canvas->restore();
+    paint.setBlendMode(SkBlendMode::kSrcOver);
     paint.setColor(SkColorSetARGB(255, 22, 118, 255));
     paint.setStrokeWidth(3);
     paint.setStyle(SkPaint::Style::kStroke_Style);
@@ -329,9 +332,19 @@ bool CutMask::OnMouseUp(const int& x, const int& y)
     if (win->state != State::mask) {
         return false;
     }
+    if ((start.fX == -10 && start.fY == -10) || (CutRect.width() <= 1 && CutRect.height() <= 1)) {
+        for (size_t i = 0; i < winRects.size(); i++)
+        {
+            if (winRects[i].contains(x, y)) {
+                CutRect = winRects[i];
+                break;
+            }
+        }
+    }
     win->state = State::tool;
     auto tool = ToolMain::Get();
-    tool->Reset();
+    tool->UnSelectAndHoverAll();
+    tool->SetPositionByCutMask();
     win->Refresh();
     Cursor::Arrow();
     return true;

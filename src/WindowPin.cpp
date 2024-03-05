@@ -1,9 +1,5 @@
-﻿#include <windowsx.h>
-#include "WindowPin.h"
-#include "App.h"
-#include "CutMask.h"
-#include "ToolMain.h"
-#include "ToolSub.h"
+﻿#include "WindowPin.h"
+#include <windowsx.h>
 #include "include/core/SkPath.h"
 #include "include/core/SkRect.h"
 #include "include/core/SkSurface.h"
@@ -12,19 +8,32 @@
 #include "include/core/SkPoint3.h"
 #include "include/core/SkRRect.h"
 #include "include/core/SkStream.h"
+#include "include/core/SkImageFilter.h"
 #include "include/encode/SkPngEncoder.h"
+#include "App.h"
+#include "Cursor.h"
+#include "CutMask.h"
+#include "ToolMain.h"
+#include "ToolSub.h"
 #include "Recorder.h"
+#include "ColorBlender.h"
+#include "WindowMain.h"
 
 
 WindowPin::WindowPin()
 {
+    imgRect = CutMask::GetCutRect();
+    auto windowMain = (WindowMain*)App::GetWin();
+    windowMain->paintToDie();
+    auto iRect = SkIRect::MakeLTRB(imgRect.fLeft, imgRect.fTop, imgRect.fRight, imgRect.fBottom);
+    img = windowMain->surfaceBase->makeImageSnapshot(iRect);
     initSize();
     initWindow();
 }
 
 WindowPin::~WindowPin()
 {
-
+    ColorBlender::Reset();
 }
 
 void WindowPin::Save(const std::string& filePath)
@@ -43,77 +52,117 @@ void WindowPin::Save(const std::string& filePath)
 void WindowPin::SaveToClipboard()
 {
     Recorder::Get()->FinishPaint();
-    HDC ScreenDC = GetDC(NULL);
-    HDC hMemDC = CreateCompatibleDC(ScreenDC);
-    auto w{ surfaceFront->width() }, h{ surfaceFront->height() };
-    HBITMAP hBitmap = CreateCompatibleBitmap(ScreenDC, w, h);
-    HBITMAP hOldBitmap = (HBITMAP)SelectObject(hMemDC, hBitmap);
-    StretchBlt(hMemDC, 0, 0, w, h, ScreenDC, x+shadowSize, y+shadowSize, w, h, SRCCOPY);
-    hBitmap = (HBITMAP)SelectObject(hMemDC, hOldBitmap);
-    DeleteDC(hMemDC);
-    DeleteObject(hOldBitmap);
-    if (!OpenClipboard(hwnd)) {
+
+    auto img = surfaceBase->makeImageSnapshot(SkIRect::MakeXYWH(shadowSize, shadowSize, surfaceFront->width(), surfaceFront->height()));
+    int width{ (int)img->width() }, height{ (int)img->height() };
+    SkPixmap pixmap;
+    img->peekPixels(&pixmap);
+    HDC screenDC = GetDC(nullptr);
+    HDC memoryDC = CreateCompatibleDC(screenDC);
+    HBITMAP hBitmap = CreateCompatibleBitmap(screenDC, width, height);
+    DeleteObject(SelectObject(memoryDC, hBitmap));
+    BITMAPINFO bitmapInfo = { 0 };
+    bitmapInfo.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
+    bitmapInfo.bmiHeader.biWidth = width;
+    bitmapInfo.bmiHeader.biHeight = -height;
+    bitmapInfo.bmiHeader.biPlanes = 1;
+    bitmapInfo.bmiHeader.biBitCount = 32;
+    SetDIBitsToDevice(memoryDC, 0, 0, width, height, 0, 0, 0, height, pixmap.addr(), &bitmapInfo, DIB_RGB_COLORS);
+    if (!OpenClipboard(nullptr)) {
         MessageBox(NULL, L"Failed to open clipboard when save to clipboard.", L"Error", MB_OK | MB_ICONERROR);
         return;
     }
     EmptyClipboard();
     SetClipboardData(CF_BITMAP, hBitmap);
     CloseClipboard();
-    ReleaseDC(NULL, ScreenDC);
+    ReleaseDC(nullptr, screenDC);
+    DeleteDC(memoryDC);
+    DeleteObject(hBitmap);
     App::Quit(7);
+
+
+    //HDC ScreenDC = GetDC(NULL);
+    //HDC hMemDC = CreateCompatibleDC(ScreenDC);
+    //auto w{ surfaceFront->width() }, h{ surfaceFront->height() };
+    //HBITMAP hBitmap = CreateCompatibleBitmap(ScreenDC, w, h);
+    //HBITMAP hOldBitmap = (HBITMAP)SelectObject(hMemDC, hBitmap);
+    //StretchBlt(hMemDC, 0, 0, w, h, ScreenDC, x+shadowSize, y+shadowSize, w, h, SRCCOPY);
+    //hBitmap = (HBITMAP)SelectObject(hMemDC, hOldBitmap);
+    //DeleteDC(hMemDC);
+    //DeleteObject(hOldBitmap);
+    //if (!OpenClipboard(hwnd)) {
+    //    MessageBox(NULL, L"Failed to open clipboard when save to clipboard.", L"Error", MB_OK | MB_ICONERROR);
+    //    return;
+    //}
+    //EmptyClipboard();
+    //SetClipboardData(CF_BITMAP, hBitmap);
+    //CloseClipboard();
+    //ReleaseDC(NULL, ScreenDC);
+    //App::Quit(7);
 }
 
 void WindowPin::initCanvas()
-{    
+{
+    surfaceBase.reset();
+    surfaceBack.reset();
+    surfaceFront.reset();
+    if (pixBase) {
+        delete pixBase;
+    }
+    if (pixSrc) {
+        delete pixSrc;
+    }
+    if (pixBack) {
+        delete pixBack;
+    }
+
     SkImageInfo imgInfo = SkImageInfo::MakeN32Premul(w, h);
     long long rowBytes = w * 4;
     long long dataSize = rowBytes * h;
-    auto pixArr = new unsigned char[dataSize];
-    pixSrc = new SkPixmap(imgInfo, pixArr, rowBytes);
-    auto canvas = SkCanvas::MakeRasterDirect(imgInfo, pixArr, rowBytes);
+    pixSrcData.resize(dataSize);    
+    pixSrc = new SkPixmap(imgInfo, &pixSrcData.front(), rowBytes);
+    auto canvas = SkCanvas::MakeRasterDirect(imgInfo, (void*)pixSrc->addr(), rowBytes);
     canvas->clear(SK_ColorTRANSPARENT);
-    auto windowMain = App::GetWin();
-    auto rect = CutMask::GetCutRect();
-    auto img = windowMain->surfaceBase->makeImageSnapshot(SkIRect::MakeLTRB(rect.fLeft, rect.fTop, rect.fRight, rect.fBottom));
-    canvas->drawImage(img, shadowSize, shadowSize);
+    canvas->drawImageRect(img, imgRect, SkSamplingOptions(SkFilterMode::kNearest, SkMipmapMode::kNearest));
 
     SkPaint paint;
     SkPath path;
-    path.addRRect(SkRRect::MakeRectXY(SkRect::MakeXYWH(shadowSize - 2, shadowSize - 2, rect.width() + 4, rect.height() + 4), 6, 6));    
+    path.addRRect(SkRRect::MakeRectXY(SkRect::MakeXYWH(shadowSize - 2, shadowSize - 2, imgRect.width() + 4, imgRect.height() + 4), 6, 6));
     SkPoint3 zPlaneParams = SkPoint3::Make(0, 0, 20);// 定义阴影与 z 平面的关系    
     SkPoint3 lightPos = SkPoint3::Make(0, 0, 0);// 定义光源的位置和半径
-    SkShadowUtils::DrawShadow(canvas.get(), path, zPlaneParams, lightPos, 20.f, SkColorSetARGB(60, 0, 0, 0), SK_ColorTRANSPARENT, 0);
+    SkShadowUtils::DrawShadow(canvas.get(), path, zPlaneParams, lightPos, 20.f, SkColorSetARGB(60, 0, 0, 0), SK_ColorTRANSPARENT, 0);    
 
-    surfaceBase = SkSurfaces::Raster(SkImageInfo::MakeN32Premul(w, h));
+    surfaceBase = SkSurfaces::Raster(imgInfo);
     pixBase = new SkPixmap();
     surfaceBase->peekPixels(pixBase);
-    SkImageInfo info = SkImageInfo::MakeN32Premul(rect.width(), rect.height());
-    surfaceBack = SkSurfaces::Raster(info);
-    surfaceFront = SkSurfaces::Raster(info);
+    SkImageInfo info1 = SkImageInfo::MakeN32Premul(imgRect.width(), imgRect.height());
+    pixBack = new SkPixmap();
+    surfaceBack = SkSurfaces::Raster(info1);
+    surfaceBack->peekPixels(pixBack);
+    surfaceFront = SkSurfaces::Raster(info1);
 }
 
 void WindowPin::initSize()
 {
-    auto rect = CutMask::GetCutRect();
     auto mainWin = App::GetWin();
-    x = mainWin->x + rect.fLeft - shadowSize;
-    y = mainWin->y + rect.fTop - shadowSize;
-    w = rect.width() + shadowSize * 2;
-    h = rect.height() + shadowSize * 2;
+    x = mainWin->x + imgRect.fLeft - shadowSize;
+    y = mainWin->y + imgRect.fTop - shadowSize;
+    w = imgRect.width() + shadowSize * 2;
+    h = imgRect.height() + shadowSize * 2;
     auto tm = ToolMain::Get();
-    tm->Reset();
-    
+    tm->Btns[11]->IsDisable = true;
     auto tempWidth = tm->ToolRect.width() + shadowSize * 2;
     if (w < tempWidth) {
         this->w = tempWidth;
     }
     h += tm->ToolRect.height() * 2 + tm->MarginTop * 2;
+    imgRect.setXYWH(shadowSize, shadowSize, imgRect.width(), imgRect.height());
 }
 
 void WindowPin::showMenu()
 {
     HMENU hMenu = CreatePopupMenu();
-    AppendMenu(hMenu, state == State::start ? MF_UNCHECKED : MF_CHECKED, 1001, L"Tool");
+    AppendMenu(hMenu, state == State::start ? MF_UNCHECKED : MF_CHECKED, 1001, L"Tool(Ctrl+T)");
     AppendMenu(hMenu, MF_STRING, 1002, L"Exit(Esc)");
     POINT point;
     GetCursorPos(&point);
@@ -124,10 +173,11 @@ void WindowPin::paintCanvas()
 {
     surfaceBase->writePixels(*pixSrc, 0, 0);
     auto canvas = surfaceBase->getCanvas();
-    auto img = surfaceBack->makeImageSnapshot();
-    canvas->drawImage(img, shadowSize,shadowSize);
-    img = surfaceFront->makeImageSnapshot();
-    canvas->drawImage(img, shadowSize, shadowSize);
+    
+    auto imgTemp = surfaceBack->makeImageSnapshot();
+    canvas->drawImage(imgTemp, shadowSize,shadowSize);
+    imgTemp = surfaceFront->makeImageSnapshot();
+    canvas->drawImage(imgTemp, shadowSize, shadowSize);
     ToolMain::Get()->OnPaint(canvas);
     ToolSub::Get()->OnPaint(canvas);
 }
@@ -186,18 +236,7 @@ LRESULT WindowPin::wndProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
         {
         case 1001:
         {
-            if (state == State::start) {
-                state = State::tool;
-                auto tm = ToolMain::Get();
-                tm->SetPosition(8.0f, h - tm->ToolRect.height() * 2 - tm->MarginTop * 2);
-                tm->IndexSelected = -1;
-                tm->IndexHovered = -1;
-            }
-            else
-            {
-                state = State::start;
-            }
-            Refresh();
+            switchToolBar();
             break;
         }
         case 1002:
@@ -261,6 +300,7 @@ bool WindowPin::onMouseUp(const int& x, const int& y)
 bool WindowPin::onMouseMove(const int& x, const int& y)
 {
     if (state == State::start) {
+        Cursor::Arrow();
         return false;
     }
     auto tm = ToolMain::Get()->OnMouseMove(x, y);
@@ -306,11 +346,63 @@ bool WindowPin::onKeyDown(const unsigned int& val)
     {
         App::Quit(3);
     }
+    else if (GetKeyState(VK_CONTROL) < 0) {
+        if (val == 'C') {
+            SaveToClipboard();
+        }
+        else if (val == 'S') {
+            App::SaveFile();
+        }
+        else if (val == 'T') {
+            switchToolBar();
+        }
+        else if (val == 'Y') {
+            Recorder::Get()->Redo();
+        }
+        else if (val == 'Z') {
+            Recorder::Get()->Undo();
+        }
+    }
 	return true;
 }
 
 bool WindowPin::onMouseWheel(const int& delta)
 {
+    if (state == State::start) {
+        float scale;
+        if (delta > 0) {
+            scale = 1.1;
+        }
+        else {
+            scale = 0.9;
+        }
+        imgRect.setXYWH(shadowSize, shadowSize, imgRect.width() * scale, imgRect.height() * scale);
+        auto tm = ToolMain::Get();
+        float w1, h1;
+        if (imgRect.width() < tm->ToolRect.width()) {
+            w1 = tm->ToolRect.width() + shadowSize * 2;
+        }
+        else {
+            w1 = imgRect.width() + shadowSize * 2;
+        }
+        h1 = imgRect.height() + shadowSize*2 + tm->ToolRect.height() * 2 + tm->MarginTop * 2;
+        x = x - (w1 - w) / 2;
+        y = y - (h1 - h) / 2;
+        w = w1;
+        h = h1;
+
+        SetWindowPos(hwnd, nullptr, x, y, w, h, SWP_NOZORDER | SWP_NOOWNERZORDER | SWP_FRAMECHANGED);
+        DeleteDC(hCompatibleDC);
+        DeleteObject(bottomHbitmap);
+        HDC hdc = GetDC(hwnd);
+        hCompatibleDC = CreateCompatibleDC(NULL);
+        bottomHbitmap = CreateCompatibleBitmap(hdc, w, h);
+        DeleteObject(SelectObject(hCompatibleDC, bottomHbitmap));
+        ReleaseDC(hwnd, hdc);
+        initCanvas();
+        Refresh();
+        return false;
+    }
     Recorder::Get()->OnMouseWheel(delta);
 	return false;
 }
@@ -318,4 +410,19 @@ bool WindowPin::onTimeout(const unsigned int& id)
 {
     Recorder::Get()->OnTimeout(id);
     return false;
+}
+
+void WindowPin::switchToolBar()
+{
+    if (state == State::start) {
+        state = State::tool;
+        auto tm = ToolMain::Get();
+        tm->SetPosition(shadowSize, h - tm->ToolRect.height() * 2 - tm->MarginTop * 2);
+        tm->UnSelectAndHoverAll();
+    }
+    else
+    {
+        state = State::start;
+    }
+    Refresh();
 }

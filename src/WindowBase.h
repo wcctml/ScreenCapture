@@ -2,9 +2,8 @@
 #include <Windows.h>
 #include <string>
 #include <format>
+#include <vector>
 #include "include/core/SkSurface.h"
-#include "include/core/SkCanvas.h"
-#include "include/core/SkPictureRecorder.h"
 #include "State.h"
 
 #define WM_REFRESH (WM_APP+1)
@@ -33,14 +32,15 @@ public:
     sk_sp<SkSurface> surfaceBase;
     sk_sp<SkSurface> surfaceBack;
     sk_sp<SkSurface> surfaceFront;
-    SkPixmap* pixSrc;
-    SkPixmap* pixBase;
+    std::vector<int32_t> pixSrcData;
+    SkPixmap* pixSrc{ nullptr };
+    SkPixmap* pixBase{nullptr};
+    SkPixmap* pixBack{ nullptr };
 
 protected:
     virtual LRESULT CALLBACK wndProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) = 0;
     virtual void initCanvas() = 0;
     virtual void paintCanvas() = 0;
-    virtual void initSize() = 0;
     void initWindow();
     HDC hCompatibleDC = NULL;
     HBITMAP bottomHbitmap;
@@ -50,5 +50,4 @@ private:
     std::wstring getPixelRgb();
     std::wstring getPixelHex();
     static LRESULT CALLBACK RouteWindowMessage(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
-    bool isRefreshing{ false };
 };

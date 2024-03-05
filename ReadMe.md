@@ -1,31 +1,45 @@
-Version [2.x.y](https://github.com/xland/ScreenCapture/releases) which is based on Skia has been released.
-
-The last stable version is available in the [1.x.y](https://github.com/xland/ScreenCapture/tree/1-x-y) branch.
-
----
-
-![](./Doc/banner.png)
+![](./doc/banner.png)
 
 
-# Features
+## Features（特性）
+
+English:
 
 - Multi-screen capture, Cross screen shot.
 - Window area highlight.
-- Draw circle,ellipse,square,rectangle,arrow,number(ordered) by diffrent colors (fill or not fill).
-- Draw opacity line,free curve,mosaic,eraser.
-- Undo Redo support (Shapes in history can be edited).
-- Save to file or clipboard.
-- Camera aperture,Copy pixel color(RGB,HEX).
+- Camera aperture,Copy pixel color:RGB(`Ctrl+R`),HEX(`Ctrl+H`).
+- Draw circle(`Shift` down),ellipse,square(`Shift` down),rectangle,arrow,ordered number by diffrent colors (fill or not fill).
+- Draw curve,straight line(`Shift` down),opacity line,mosaic,eraser,text(`Mouse Wheel` to change font size).
+- Modify the drawn elements at any time(`Mouse Over` the element and wait `1.6` second).
+- Undo(`Ctrl+Z`) Redo(`Ctrl+Y`) support.
+- Pin the cut area on desktop(`Ctrl+P`), resize pin window by `Mouse Wheel`.
+- Save to file(`Ctrl+S`) or clipboard(`Ctrl+C`).
 - Very fast,Small memory footprint,Low CPU useage.
 - Only one small executable file (with out any dll).
 - Can be easily integrated into any program.
 - Powered by Skia.
 
-# Download
+Chinese:
+
+- 跨屏幕截图、高分屏支持、窗口区域高亮。
+- 取景框，支持快捷键复制 RGB 颜色 （`Ctrl+R`）和 HEX 颜色（`Ctrl+H`）。
+- 绘制填充、非填充的椭圆、正圆（`Shift`按下）、矩形、正方形（`Shift`按下）、箭头、排序标号（`拖拽`调整箭头方向和大小，`滚轮`调整大小）。
+- 画曲线、直线（`Shift`按下）、半透明直线、马赛克、橡皮擦、文本（`滚轮`调整文字大小）。
+- 可以随时修改已绘制的元素（鼠标移到元素上等待 `1.6` 秒）。
+- 上一步（`Ctrl+Z`）、下一步（`Ctrl+Y`）。
+- 在新窗口中钉住截图区域（`Ctrl+P`）,鼠标`滚轮`改变钉图窗口大小。
+- 保存成文件（`Ctrl+S`）、保存到剪切板（`Ctrl+C`）。
+- 非常快、低内存消耗、低 CPU 使用率。
+- 非常小、仅一个可执行文件（4.9M），无需安装，不依赖任何动态链接库。
+- 可以非常容易的集成到其他应用中。
+- 基于Skia。
+
+
+## Download（下载）
 
 [Release](https://github.com/xland/ScreenCapture/releases/) (4.9M)
 
-# Integration
+## Integration（集成）
 
 (With Node.js Or Electron)
 
@@ -46,29 +60,51 @@ child.on("close", (code) => {
 });
 ```
 
-# Support OS
+## Support OS（支持的操作系统）
 
 - Windows 10 1607 or Later
 
-# HotKey
+## HotKey（快捷键）
 
 - Download [AutoHotKey](https://www.autohotkey.com/) and install it.
 - Create a `.ahk` script file in `Startup` folder and set the file's content:
 ```c
 /*
-    C:\Users\[UserName]\AppData\Roaming\Microsoft\Windows\Start Menu\Programs\Startup\ScreenCapture.ahk
-    ^  :  Ctrl
-    !  :  Alt
-    +  :  Shift
-    #  :  Win
-    The hotkey is Ctrl+Alt+A 
+C:\Users\[UserName]\AppData\Roaming\Microsoft\Windows\Start Menu\Programs\Startup\ScreenCapture.ahk
+^  :  Ctrl
+!  :  Alt
++  :  Shift
+#  :  Win
+The hotkey is Ctrl+Alt+A 
 */
 ^!A::Run "D:\path\to\ScreenCapture.exe"
 ```
 - Double Click the `.ahk` file,then you can start the `ScreenCapture.exe` by press `Ctrl+Alt+A`.
 - The `.ahk` script will be executed when the system startup.
 
-# Licenses
+
+## Sponsorship（赞助）
+
+
+<img src="./doc/alipay.jpg" style="width:160px;height:160px;" /><br />
+alipay(支付宝支付)
+
+
+<img src="./doc/wechat.png" style="width:160px;height:160px;" /><br />
+wechat(微信支付)
+
+
+## Author（作者）
+
+<img src="./doc/author.jpg" style="width:160px;height:160px;" />
+
+Author's Wechat QR code（作者微信）
+
+Whether there is any topic to talk about, whether it is related to this product or not, I am very happy to meet you.
+
+无论有没有要聊的话题，无论是不是与此产品有关的话题，都很开心能认识你。
+
+## Licenses（版权）
 
 This project is under the [MIT license](./licence).
 

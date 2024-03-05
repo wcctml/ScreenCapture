@@ -1,8 +1,6 @@
 #pragma once
-#include "include/core/SkSurface.h"
 #include "include/core/SkCanvas.h"
 #include "include/core/SkRect.h"
-#include "include/core/SkPoint.h"
 #include "ToolBtn.h"
 #include <vector>
 
@@ -20,9 +18,9 @@ public:
     float MarginTop{8.0f};
     int IndexHovered;
     int IndexSelected;
+    std::vector<std::shared_ptr<ToolBtn>> Btns;
 
 protected:
-    std::vector<std::shared_ptr<ToolBtn>> btns;
     bool isMouseDown{ false };
 private:
 };

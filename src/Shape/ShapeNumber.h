@@ -1,11 +1,7 @@
 #pragma once
-#include "include/core/SkSurface.h"
 #include "include/core/SkCanvas.h"
-#include "include/core/SkRect.h"
-#include "include/core/SkPoint.h"
 #include "include/core/SkPath.h"
 #include "ShapeBase.h"
-#include <vector>
 
 class ShapeNumber : public ShapeBase
 {
@@ -17,7 +13,7 @@ public:
     bool OnMouseMove(const int &x, const int &y) override;
     void Paint(SkCanvas *canvas) override;
     bool OnMoseDrag(const int &x, const int &y) override;
-
+    bool OnMouseWheel(const int& delta) override;
 protected:
     void initParams();
     void makePath(const int &x1, const int &y1, const int &x2, const int &y2);
@@ -30,5 +26,4 @@ protected:
     float r;
     int number{1};
 private:
-    void setDragger();
 };

@@ -1,9 +1,13 @@
-#include "App.h"
+ï»¿#include "App.h"
 #include <Windows.h>
 #include <shlobj.h>
-#include "../res/res.h"
+#include <sstream>
+#include "include/core/SkFont.h"
+#include "include/core//SkFontMgr.h"
 #include "include/core/SkFontStyle.h"
 #include "include/core/SkData.h"
+#include "include/ports/SkTypeface_win.h"
+#include "../res/res.h"
 #include "WindowMain.h"
 #include "WindowPin.h"
 #include "Cursor.h"
@@ -18,6 +22,7 @@ SkFont* fontText{ nullptr };
 WindowBase* win { nullptr };
 static int exitCode{ 0 };
 static std::vector<std::shared_ptr<SkRect>> screens;
+sk_sp<SkFontMgr> fontMgr;
 
 App::~App()
 {
@@ -25,12 +30,13 @@ App::~App()
 
 void App::Init()
 {
+    fontMgr = SkFontMgr_New_GDI();
     initFontText();
     initFontIcon();
+    win = new WindowMain();
     ToolMain::Init();
     ToolSub::Init();
     Recorder::Init();
-    win = new WindowMain();
     CutMask::Get()->EnumWinRects();
     win->Show();
     Cursor::Cross();
@@ -74,6 +80,8 @@ void App::Pin()
     win->Close(0);
     delete win;
     win = pinWin;
+    Recorder::Get()->Reset();
+    screens.clear();
 }
 
 void App::Quit(const int& code) {
@@ -89,26 +97,24 @@ void App::initFontIcon()
     HRSRC resID = FindResource(instance, MAKEINTRESOURCE(IDR_ICON_FONT), L"ICON_FONT");
     if (resID == 0)
     {
-        MessageBox(NULL, L"²éÕÒ×ÖÌåÍ¼±ê×ÊÔ´Ê§°Ü", L"ÏµÍ³ÌáÊ¾", NULL);
+        MessageBox(NULL, L"æŸ¥æ‰¾å­—ä½“å›¾æ ‡èµ„æºå¤±è´¥", L"ç³»ç»Ÿæç¤º", NULL);
         return;
     }
     size_t resSize = SizeofResource(instance, resID);
     HGLOBAL res = LoadResource(instance, resID);
     if (res == 0)
     {
-        MessageBox(NULL, L"¼ÓÔØ×ÖÌåÍ¼±ê×ÊÔ´Ê§°Ü", L"ÏµÍ³ÌáÊ¾", NULL);
+        MessageBox(NULL, L"åŠ è½½å­—ä½“å›¾æ ‡èµ„æºå¤±è´¥", L"ç³»ç»Ÿæç¤º", NULL);
         return;
     }
     LPVOID resData = LockResource(res);
     auto fontData = SkData::MakeWithoutCopy(resData, resSize);
-    auto iconFace = SkTypeface::MakeFromData(fontData);
-    fontIcon = new SkFont(iconFace);
+    fontIcon = new SkFont(fontMgr->makeFromData(fontData));
 }
 
 void App::initFontText()
 {
-	auto fontFace = SkTypeface::MakeFromName("Microsoft YaHei", SkFontStyle::Normal());
-	fontText = new SkFont(fontFace);
+    fontText = new SkFont(fontMgr->matchFamilyStyle("Microsoft YaHei", {}));
 }
 void App::initScreens() {
     EnumDisplayMonitors(NULL, NULL, [](HMONITOR hMonitor, HDC hdcMonitor, LPRECT lprcMonitor, LPARAM lParam)
@@ -125,6 +131,58 @@ void App::initScreens() {
             screens.push_back(ptr);
             return TRUE;
         }, NULL);
+}
+
+void App::SaveFile() {
+    IFileOpenDialog* dialog;
+    CLSID param1 = CLSID_FileSaveDialog, param2 = IID_IFileSaveDialog;
+    auto hr = CoCreateInstance(param1, NULL, CLSCTX_ALL, param2, reinterpret_cast<void**>(&dialog));
+    if (FAILED(hr))
+    {
+        MessageBox(NULL, L"Failed to create COM FileSaveDialog object.", L"Error", MB_OK | MB_ICONERROR);
+        return;
+    }
+    COMDLG_FILTERSPEC FileTypes[] = { { L"All Pictures", L"*.png;" },{ L"All files", L"*.*" } };
+    SYSTEMTIME localTime;
+    GetLocalTime(&localTime);
+    std::wstring name = std::format(L"{}{}{}{}{}{}{}", localTime.wYear, localTime.wMonth, localTime.wDay,
+        localTime.wHour, localTime.wMinute, localTime.wSecond, localTime.wMilliseconds);
+    dialog->SetFileName(name.c_str());
+    dialog->SetFileTypes(2, FileTypes);
+    dialog->SetTitle(L"Save File");
+    dialog->SetDefaultExtension(L"png");
+    dialog->SetOptions(FOS_FORCEFILESYSTEM | FOS_PATHMUSTEXIST | FOS_OVERWRITEPROMPT);
+    hr = dialog->Show(App::GetWin()->hwnd);
+    if (hr == HRESULT_FROM_WIN32(ERROR_CANCELLED)) { //ç”¨æˆ·å–æ¶ˆ
+        dialog->Release();
+        return;
+    }
+    IShellItem* pItem;
+    hr = dialog->GetResult(&pItem);
+    if (FAILED(hr))
+    {
+        dialog->Release();
+        MessageBox(NULL, L"Failed to get file path from save dialog.", L"Error", MB_OK | MB_ICONERROR);
+        return;
+    }
+    PWSTR filePath;
+    hr = pItem->GetDisplayName(SIGDN_FILESYSPATH, &filePath);
+    if (FAILED(hr))
+    {
+        CoTaskMemFree(filePath);
+        dialog->Release();
+        MessageBox(NULL, L"Failed to get file name from save dialog.", L"Error", MB_OK | MB_ICONERROR);
+        return;
+    }
+    std::wstringstream ss;
+    ss << filePath;
+    CoTaskMemFree(filePath);
+    dialog->Release();
+    std::wstring wstr = ss.str();
+    int count = WideCharToMultiByte(CP_UTF8, 0, wstr.c_str(), wstr.length(), NULL, 0, NULL, NULL);
+    std::string str(count, 0);
+    WideCharToMultiByte(CP_UTF8, 0, wstr.c_str(), -1, &str[0], count, NULL, NULL);
+    win->Save(str);
 }
 
 std::shared_ptr<SkRect> App::GetScreen(const float& x, const float& y)

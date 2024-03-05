@@ -1,7 +1,10 @@
 ﻿#include "Recorder.h"
+#include "include/core/SkStream.h"
+#include "include/encode/SkPngEncoder.h"
 #include "App.h"
 #include "WindowBase.h"
 #include "Cursor.h"
+#include "ToolMain.h"
 #include "ToolSub.h"
 #include "Shape/ShapeBase.h"
 #include "Shape/ShapeRect.h"
@@ -15,7 +18,7 @@
 #include "Shape/ShapeEraserRect.h"
 #include "Shape/ShapeMosaic.h"
 #include "Shape/ShapeMosaicRect.h"
-#include "ToolMain.h"
+
 
 Recorder *recorder;
 
@@ -41,48 +44,9 @@ bool Recorder::OnMouseDown(const int &x, const int &y)
         return false;
     }
     HoverShape = nullptr;
-    if (CurShape) {        
-        if (typeid(*CurShape) == typeid(ShapeText)) {
-            if (CurShape->IsWip) { //正在写字
-                bool flag = CurShape->OnMouseDown(x, y);
-                if (flag) { //不在输入框内，结束写字
-                    auto textObj = static_cast<ShapeText*>(CurShape);
-                    if (textObj->EndInput()) { //还没输入，则删除此对象
-                        std::erase_if(shapes, [this](auto& item) { return item.get() == CurShape; });
-                        App::GetWin()->ClearTimeout(WM_FLASH_CURSOR);
-                    }
-                    CurShape = nullptr;
-                }
-                return true;
-            }
-            else { //没在写字
-                bool flag = CurShape->OnMouseDown(x, y);
-                if (flag) { //不在输入框内
-                    return false;
-                }
-            }
-        }
-        CurShape->IsWip = true;
-        CurShape->OnMouseDown(x, y);
-        auto canvasBack = win->surfaceBack->getCanvas();
-        auto canvasFront = win->surfaceFront->getCanvas();
-        canvasBack->clear(SK_ColorTRANSPARENT);
-        canvasFront->clear(SK_ColorTRANSPARENT);
-        for (auto& shape : shapes)
-        {
-            if (shape->IsWip) {
-                shape->Paint(canvasFront);
-            }
-            else {
-                if (shape->IsDel) {
-                    break;
-                }
-                else {
-                    shape->Paint(canvasBack);
-                }                
-            }
-        }
-        win->Refresh();        
+    ProcessText(x, y);
+    if (CurShape) {
+        clickShape(CurShape,x, y);
     }
     else {
         createShape(x, y, win->state);
@@ -91,6 +55,63 @@ bool Recorder::OnMouseDown(const int &x, const int &y)
     }
     return false;
 }
+
+bool Recorder::ProcessText(int x, int y)
+{
+    if (CurShape && typeid(*CurShape) == typeid(ShapeText)) {
+        auto textObj = static_cast<ShapeText*>(CurShape);
+        if (!textObj->Rect.contains(x,y)) { //不在输入框内，结束写字            
+            if (textObj->EndInput()) { //还没输入，则删除此对象
+                std::erase_if(shapes, [this](auto& item) { return item.get() == CurShape; });
+            }
+            CurShape = nullptr;
+        }
+        return true;
+    }
+    return false;
+}
+
+void Recorder::ProcessText()
+{
+    if (HoverShape == CurShape) {
+        return;
+    }
+    POINT pos;
+    GetCursorPos(&pos);
+    ScreenToClient(App::GetWin()->hwnd, &pos);
+    ProcessText(pos.x, pos.y);
+    if (HoverShape && typeid(*HoverShape) == typeid(ShapeText)) {
+        clickShape(HoverShape,pos.x, pos.y);
+        Cursor::Text();
+    }
+}
+
+void Recorder::clickShape(ShapeBase* shape,int x, int y)
+{
+    shape->IsWip = true;
+    shape->OnMouseDown(x, y);
+    auto win = App::GetWin();
+    auto canvasBack = win->surfaceBack->getCanvas();
+    auto canvasFront = win->surfaceFront->getCanvas();
+    canvasBack->clear(SK_ColorTRANSPARENT);
+    canvasFront->clear(SK_ColorTRANSPARENT);
+    for (auto& item : shapes)
+    {
+        if (item->IsWip) {
+            item->Paint(canvasFront);
+        }
+        else {
+            if (item->IsDel) {
+                break;
+            }
+            else {
+                item->Paint(canvasBack);
+            }
+        }
+    }
+    win->Refresh();
+}
+
 bool Recorder::OnMouseDownRight(const int& x, const int& y)
 {
     //正在写字，右键点击 结束写字
@@ -125,6 +146,8 @@ bool Recorder::OnMouseUp(const int &x, const int &y)
     auto win = App::GetWin();
     auto canvasBack = win->surfaceBack->getCanvas();
     canvasBack->clear(SK_ColorTRANSPARENT);
+    auto canvasFront = win->surfaceFront->getCanvas();
+    canvasFront->clear(SK_ColorTRANSPARENT);
     bool undoDisable = true;
     bool redoDisable = true;
     //必须全部重绘一次，不然修改历史元素时，无法保证元素的绘制顺序
@@ -134,7 +157,7 @@ bool Recorder::OnMouseUp(const int &x, const int &y)
             redoDisable = false;
         }
         else{
-            shape->Paint(canvasBack); 
+            shape->Paint(canvasBack);
             undoDisable = false;
         }
     }
@@ -142,6 +165,7 @@ bool Recorder::OnMouseUp(const int &x, const int &y)
     toolMain->SetUndoDisable(undoDisable);
     toolMain->SetRedoDisable(redoDisable);
     CurShape = nullptr;
+    win->Refresh();
     return false;
 }
 bool Recorder::OnMouseMove(const int &x, const int &y)
@@ -157,10 +181,6 @@ bool Recorder::OnMouseMove(const int &x, const int &y)
         Cursor::Cross();
     }
     if (shapes.size() == 0) {
-        return false;
-    }
-    //写字时，鼠标移动到其他元素上必不能显示dragger，因为dragger会刷新front canvas，就会把字刷掉
-    if (CurShape && CurShape->IsWip && typeid(*CurShape) == typeid(ShapeText)) {
         return false;
     }
     bool isHover = false;
@@ -191,6 +211,16 @@ bool Recorder::OnMouseDrag(const int &x, const int &y)
     HoverShape = nullptr;
     if (CurShape)
     {
+        //if (typeid(*CurShape) == typeid(ShapeEraserRect)) {
+        //    auto win = App::GetWin();
+        //    auto backCanvas = win->surfaceBack->getCanvas();
+        //    for (auto& shape : shapes)
+        //    {
+        //        if (!shape->IsDel && shape.get() != CurShape) {
+        //            shape->Paint(backCanvas);
+        //        }
+        //    }
+        //}
         CurShape->OnMoseDrag(x, y);
     }
     return false;
@@ -205,22 +235,12 @@ bool Recorder::OnChar(const unsigned int& val)
 }
 bool Recorder::OnKeyDown(const unsigned int& val)
 {
+    if (val == VK_ESCAPE && ProcessText(-1, -1)) {
+        return true;
+    }
     if (CurShape)
     {
-        if (val == VK_ESCAPE && typeid(*CurShape) == typeid(ShapeText)) {
-            auto textObj = static_cast<ShapeText*>(CurShape);
-            auto flag = textObj->EndInput();
-            if (flag) {
-                std::erase_if(shapes, [this](auto& item) { return item.get() == CurShape; }); 
-                App::GetWin()->ClearTimeout(WM_FLASH_CURSOR);
-            }
-            CurShape = nullptr;
-            return true;
-        }
-        else
-        {
-            return CurShape->OnKeyDown(val);
-        }
+        return CurShape->OnKeyDown(val);
     }
     return false;
 }
@@ -240,11 +260,12 @@ bool Recorder::OnTimeout(const unsigned int& id)
         auto win = App::GetWin();
         win->ClearTimeout(WM_SHOW_DRAGGER);
         if (HoverShape) {
+            ProcessText();
             HoverShape->ShowDragger();
             CurShape = HoverShape;
             if (typeid(*CurShape) != typeid(ShapeText)) {
                 win->SetTimeout(WM_HIDE_DRAGGER, 1600);
-            }            
+            }
         }
         break;
     }
@@ -293,6 +314,7 @@ void Recorder::Undo()
     {
         if (shapes[i]->IsDel)
         {
+            redoDisable = false;
             break;
         }
         else {
@@ -342,6 +364,12 @@ void Recorder::FinishPaint()
     if (!flag && CurShape) {
         CurShape->HideDragger();
     } 
+}
+void Recorder::Reset()
+{
+    CurShape = nullptr;
+    HoverShape = nullptr;
+    shapes.clear();
 }
 void Recorder::createShape(const int &x, const int &y, const State &state)
 {

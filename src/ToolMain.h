@@ -4,8 +4,6 @@
 #include "include/core/SkRect.h"
 #include "include/core/SkPoint.h"
 #include "ToolBase.h"
-#include "ToolBtn.h"
-#include <vector>
 
 class ToolMain : public ToolBase
 {
@@ -20,10 +18,9 @@ public:
     void SetUndoDisable(bool flag);
     void SetRedoDisable(bool flag);
     void InitBtns();
-    void Reset();
+    void UnSelectAndHoverAll();
 private:
     ToolMain();
-    void saveFile();
     /// <summary>
     /// 0主工具条在选中或取消选中某个按钮时不需要改变位置
     /// 1选中某个按钮时，位置上移
